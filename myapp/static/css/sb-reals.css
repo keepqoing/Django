@@ -1,0 +1,27 @@
+body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.real_graph .axis {
+    stroke-width: 1;
+}
+
+.real_graph .axis .tick line {
+    stroke: black;
+}
+
+.real_graph .axis .tick text {
+    fill: black;
+    font-size: 0.7em;
+}
+
+.real_graph .axis .domain {
+    fill: none;
+    stroke: black;
+}
+
+.real_graph .group {
+    fill: none;
+    stroke: black;
+    stroke-width: 1.5;
+}
