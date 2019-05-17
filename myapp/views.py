@@ -202,13 +202,13 @@ def getAprioriData(request):
 
     print("====================================== ap 생성 시작 ======================================")
     t = time.time()
+    print(t)
+    L, suppData = apriori(dataSet, 0.001)
 
-    L, suppData = apriori(dataSet, 0.005)
-
-    rules = generateRules(L, suppData, 0.4)
+    rules = generateRules(L, suppData, 0.04)
 
     print("====================================== ap 생성 완료 ======================================")
-    print(time.time() - t, "sec")
+    print(time.time(), time.time() - t, "sec")
 
     # myRules = sorted(rules.ite)
     tmprules = sorted(rules, key=lambda item: (item['sup']))
@@ -216,7 +216,7 @@ def getAprioriData(request):
     # for rule in tmprules:
     #     print(rule)
 
-    supportData = getC1sup(dataSet, 0.005   )
+    supportData = getC1sup(dataSet, 0.001)
 
     myrules = []
 
@@ -271,7 +271,6 @@ def getC1sup(dataSet, minSupport):
     D = dataSet
 
     # Ck = list(map(frozenset, C1))  # use frozen set so we
-    print(C1)
 
     # 나중에 사용하게 될 지지도 값을 가진 딕셔너리 ssCnt
     ssCnt = {}
@@ -307,14 +306,10 @@ def getDataset():
 
     pipeline = list()
 
-    # db.portal4.aggregate([{'$match' : {'date' : '2016-12-10 00:00:00'}},{'$unwind': '$search'},{'$unwind' : '$search.sWord_Spacing'},{'$group': {'_id': '$ip', 'sW' : {'$addToSet' : '$search.sWord_Spacing'}}},{'$project': {'_id' : 1, 'sW': 1}}],{allowDiskUse:ture})
-    #                         {'$match' : {'date' : {'$gt' : '2016-12-23 00:00:00'}}},
-    #                       {'$unwind': '$search'},{'$unwind' : '$search.sWord_Spacing'},
-    #                       {'$group': {'_id': '$ip', 'sW' : {'$addToSet' : '$search.sWord_Spacing'}}}
-    #                          ,{'$project': {'_id' : 1, 'sW': 1}}
-    #                       ], {allowDiskUse : true})
+    # db.portal4.aggregate([{'$match' : {'date' : '2016-12-25 00:00:00'}},{'$unwind': '$search'},{'$unwind' : '$search.sWord_Spacing'},{'$group': {'_id': '$ip', 'sW' : {'$addToSet' : '$search.sWord_Spacing'}}},{'$project': {'_id' : 1, 'sW': 1}}],{allowDiskUse:true})
 
-    pipeline.append({'$match' : {'date' : '2016-12-10 00:00:00'}})
+
+    pipeline.append({'$match' : {'date' : '2016-12-09 00:00:00'}})
     pipeline.append({'$unwind': '$search'})
     pipeline.append({'$unwind' : '$search.sWord_Spacing'})
     pipeline.append({'$group': {'_id': '$ip', 'sW' : {'$addToSet' : '$search.sWord_Spacing'}}})
@@ -496,3 +491,4 @@ def calcConf(source, target, supportData, brl, minConf):
             tmp["conf"] = conftmp
             tmp["lift"] = conftmp / supportData[target]
             brl.append(tmp)
+
