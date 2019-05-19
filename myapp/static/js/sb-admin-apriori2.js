@@ -28,16 +28,7 @@ $(function () {
 
                 console.log(json);
 
-                function Color(c) {
-                    return {
-                        "1": '#B40404',
-                        '2': '#B43104',
-                        '3': '#B45F04',
-                        '4': '#B18904',
-                        '5': '#AEB404',
-                        '6': '#86B404'
-                    }[c]
-                };
+
 
                 var json = response.DATA;
                 var svg = d3.select("#apriori")

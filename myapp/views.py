@@ -193,54 +193,61 @@ def ap(request):
 
 @csrf_exempt
 def getAprioriData(request):
-    minsup = 0.01
+    minsup = 0.004
+    print("====================================== 데이터 불러오는 중... ======================================")
 
-    dataSet = getDataset()
+    dataSet, C1, D = getDataset()
+
     print("====================================== 데이터 불러오기 완료 ======================================")
 
     print(len(dataSet))
 
+    # minsup = 250/ len(dataSet)
     print("====================================== ap 생성 시작 ======================================")
     t = time.time()
     print(t)
-    L, suppData = apriori(dataSet, 0.001)
+    L, suppData, supportData = apriori(dataSet, minsup, C1, D)
 
-    rules = generateRules(L, suppData, 0.04)
+
+    rules = generateRules(L, suppData, 0.6)
 
     print("====================================== ap 생성 완료 ======================================")
     print(time.time(), time.time() - t, "sec")
 
-    # myRules = sorted(rules.ite)
-    tmprules = sorted(rules, key=lambda item: (item['sup']))
 
-    # for rule in tmprules:
-    #     print(rule)
-
-    supportData = getC1sup(dataSet, 0.001)
+    print("====================================== sup 계산중 ======================================")
 
     myrules = []
 
     # for i,val in enumerate(rules):
     #     print(val)
 
+    cmp = []
     for i, val in enumerate(rules):
         if len(val["source"]) + len(val["target"]) == 2:
             val["source"] = val["source"][0]
             val["target"] = val["target"][0]
             myrules.append(val)
+
+
+
+
+
+
             # print(val)
 
     nodes = []
     for i, val in enumerate(myrules):
         node1 = {}
         node1["name"] = val["source"]
-        node1["sup"] = supportData[val["source"]]
+        node1["sup"] = suppData[frozenset([val["source"]])]
         if node1 not in nodes:
             nodes.append(node1)
 
         node2 = {}
         node2["name"] = val["target"]
-        node2["sup"] = supportData[val["target"]]
+        node2["sup"] = suppData[frozenset([val["target"]])]
+
         if node2 not in nodes:
             nodes.append(node2)
 
@@ -257,45 +264,42 @@ def getAprioriData(request):
     data["links"] = myrules
 
     # itemList = getItemList(dataSet)
-    return HttpResponse(json.dumps({'DATA': data, 'itemList': tmprules}), 'application/json')
+    return HttpResponse(json.dumps({'DATA': data}), 'application/json')
     return render(request, "index/apriori.html")
 
-def getC1sup(dataSet, minSupport):
+def createC(date, collection, C1):
+    pipeline = list()
+
+    # 단어별 count
+    pipeline.append({'$match': {'date': date}})
+    pipeline.append({'$unwind': '$search'})
+    pipeline.append({'$unwind': '$search.sWord_Spacing'})
+    pipeline.append({'$group': {'_id': '$search.sWord_Spacing', 'count': {'$sum': 1}}})
+    pipeline.append({'$project': {'_id': 1, 'count': 1}})
+    pipeline.append({'$sort': {'count': 1}})
+
+    result = collection.aggregate(pipeline, allowDiskUse=True)
+
     C1 = []
-    for transaction in dataSet:
-        for item in transaction:
-            if not item in C1:
-                C1.append(item)
+    for doc in result:
+        C1.insert(0, frozenset([doc['_id']]))
+    return C1
 
-    C1.sort()
-    D = dataSet
+def createD(date, collection, D, transactionData):
+    pipeline = list()
+    pipeline.append({'$match': {'date': date }})
+    pipeline.append({'$unwind': '$search'})
+    pipeline.append({'$unwind': '$search.sWord_Spacing'})
+    pipeline.append({'$group': {'_id': '$ip', 'sW': {'$addToSet': '$search.sWord_Spacing'}}})
+    pipeline.append({'$project': {'_id': 1, 'sW': 1}})
+    result = collection.aggregate(pipeline, allowDiskUse=True)
 
-    # Ck = list(map(frozenset, C1))  # use frozen set so we
+    for doc in result:
+        # print(doc)
+        D.insert(0, set(doc['sW']))
+        transactionData.append(doc["sW"])
 
-    # 나중에 사용하게 될 지지도 값을 가진 딕셔너리 ssCnt
-    ssCnt = {}
-    for tid in D:
-        for can in C1:
-
-            if can in tid:
-                if not can in ssCnt:
-                    ssCnt[can] = 1
-                else:
-                    ssCnt[can] += 1
-
-    transLen = float(len(D))
-    # 최소 지지도를 만족하는 집합 retList
-    retList = []
-
-    supportData = {}
-    for key in ssCnt:
-        support = ssCnt[key] / transLen
-        if support >= minSupport:
-            retList.insert(0, key)
-        supportData[key] = support
-    return supportData
-
-
+    return transactionData, D
 # Fault_Find_Cause1
 # csv 파일을 읽어서 Transaction의 형태로 저장
 def getDataset():
@@ -306,75 +310,66 @@ def getDataset():
 
     pipeline = list()
 
-    # db.portal4.aggregate([{'$match' : {'date' : '2016-12-25 00:00:00'}},{'$unwind': '$search'},{'$unwind' : '$search.sWord_Spacing'},{'$group': {'_id': '$ip', 'sW' : {'$addToSet' : '$search.sWord_Spacing'}}},{'$project': {'_id' : 1, 'sW': 1}}],{allowDiskUse:true})
+    C1 = []
+    C1 = createC('2016-11-14 00:00:00', collection, C1)
+    # C1 = createC('2016-11-15 00:00:00', collection, C1)
+    # C1 = createC('2016-11-16 00:00:00', collection, C1)
+    # C1 = createC('2016-11-17 00:00:00', collection, C1)
+    # C1 = createC('2016-11-18 00:00:00', collection, C1)
+    # C1 = createC('2016-11-19 00:00:00', collection, C1)
+    # C1 = createC('2016-11-20 00:00:00', collection, C1)
+    # C1 = createC('2016-11-21 00:00:00', collection, C1)
+    # C1 = createC('2016-11-22 00:00:00', collection, C1)
+    # C1 = createC('2016-11-23 00:00:00', collection, C1)
+    # C1 = createC('2016-11-24 00:00:00', collection, C1)
+    # C1 = createC('2016-11-25 00:00:00', collection, C1)
 
-
-    pipeline.append({'$match' : {'date' : '2016-12-09 00:00:00'}})
-    pipeline.append({'$unwind': '$search'})
-    pipeline.append({'$unwind' : '$search.sWord_Spacing'})
-    pipeline.append({'$group': {'_id': '$ip', 'sW' : {'$addToSet' : '$search.sWord_Spacing'}}})
-    pipeline.append({'$project': {'_id' : 1, 'sW': 1}})
-
-
-
-    result = collection.aggregate(pipeline, allowDiskUse=True)
+    # # 단어별 count
+    # pipeline.append({'$match': {'date': '2016-11-14 00:00:00'}})
+    # pipeline.append({'$unwind': '$search'})
+    # pipeline.append({'$unwind': '$search.sWord_Spacing'})
+    # pipeline.append({'$group': {'_id': '$search.sWord_Spacing', 'count': {'$sum': 1}}})
+    # pipeline.append({'$project': {'_id': 1, 'count': 1}})
+    # pipeline.append({'$sort': {'count': 1}})
+    #
+    # result = collection.aggregate(pipeline, allowDiskUse=True)
+    #
+    # C1 = []
+    # for doc in result:
+    #     C1.insert(0, frozenset([doc['_id']]))
 
     transactionData = list()
-
-    for doc in result:
-        # print(doc)
-        transactionData.append(doc["sW"])
-
-    return transactionData
-
-
-def getItemList(dataSet):
-    itemList = {}
-    L = []
-    E = []
-
-    I = []
     D = []
-    F = []
-    S = []
-    for transaction in dataSet:
-        for item in transaction:
 
-            if item[0] == 'L':
-                if not item in L:
-                    L.append(item)
-            elif item[0] == 'E':
-                if not item in E:
-                    E.append(item)
-            elif item[0] == 'I':
-                if not item in I:
-                    I.append(item)
-            elif item[0] == 'D':
-                if not item in D:
-                    D.append(item)
-            elif item[0] == 'F':
-                if not item in F:
-                    F.append(item)
-            elif item[0] == 'S':
-                if not item in S:
-                    S.append(item)
-    L.sort()
-    E.sort()
-    S.sort()
-    I.sort()
-    D.sort()
-    F.sort()
-    itemList["L"] = L
-    itemList["E"] = E
-    itemList["I"] = I
-    itemList["D"] = D
-    itemList["F"] = F
-    itemList["S"] = S
+    transactionData, D = createD('2016-11-14 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-15 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-16 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-17 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-18 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-19 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-20 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-21 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-22 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-23 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-24 00:00:00', collection, D, transactionData)
+    # transactionData, D = createD('2016-11-25 00:00:00', collection, D, transactionData)
 
-    # frozenset은 고정된 집합이므로 변경할 수 없다.
-    # set 대신 frozenset을 사용하는 이유는
-    # 나중에 이 집합들을 딕셔너리의 키처럼 사용할 것이기 때문이다.
-    return itemList
+
+    # pipeline.clear()
+    # pipeline.append({'$match': {'date': '2016-11-14 00:00:00'}})
+    # pipeline.append({'$unwind': '$search'})
+    # pipeline.append({'$unwind': '$search.sWord_Spacing'})
+    # pipeline.append({'$group': {'_id': '$ip', 'sW': {'$addToSet': '$search.sWord_Spacing'}}})
+    # pipeline.append({'$project': {'_id': 1, 'sW': 1}})
+    # result = collection.aggregate(pipeline, allowDiskUse=True)
+    #
+    #
+    # for doc in result:
+    #     # print(doc)
+    #     D.insert(0, set(doc['sW']))
+    #     transactionData.append(doc["sW"])
+
+    return transactionData, C1, D
 
 
 # 후보 아이템 집합 C1을 만드는 함수
@@ -397,11 +392,15 @@ def createC1(dataSet):
     # can use it as a key in a dict
 
 
+
 # D는 dataset (transaction list)
 # Ck는 후보 집합 리스트
 # minSupport는 최소 지지도
 # C1으로부터 L1을 생성한다.
-def scanD(D, Ck, minSupport):
+def scanD(D, Ck, minSupport,flag):
+    t = time.time()
+    print("===================================  scanD ==================================")
+
     # 나중에 사용하게 될 지지도 값을 가진 딕셔너리 ssCnt
     ssCnt = {}
     for tid in D:
@@ -415,15 +414,21 @@ def scanD(D, Ck, minSupport):
     transLen = float(len(D))
     # 최소 지지도를 만족하는 집합 retList
     retList = []
-
+    retList2 = []
     supportData = {}
     for key in ssCnt:
         support = ssCnt[key] / transLen
         if support >= minSupport:
             retList.insert(0, key)
         supportData[key] = support
-    return retList, supportData
-
+        if flag == 1:
+            retList2.insert(0, key)
+            # print(key, support)
+    print(time.time() - t)
+    if flag == 1:
+        return retList, supportData, retList2
+    else:
+        return retList, supportData
 
 def aprioriGen(Lk, k):  # creates Ck
     retList = []
@@ -440,26 +445,35 @@ def aprioriGen(Lk, k):  # creates Ck
     return retList
 
 
-def apriori(dataSet, minSupport):
-    C1 = createC1(dataSet)
-    D = list(map(set, dataSet))
+def apriori(dataSet, minSupport, C1, D):
+    # C1 = createC1(dataSet)
+    # print(C1)
+    # D = list(map(set, dataSet))
+    # print("first D : ", D)
+    # print("============================================================================")
 
     # 길이가 1인 후보 아이템 목록 생성
-    L1, supportData = scanD(D, C1, minSupport)
+    L1, supportData, C1sup = scanD(D, C1, minSupport, 1)
+    print("============================================================================")
+
+
     L = [L1]
     k = 2
     # 집합 내에 있는 아이템의 갯수가 0보다 큰 동안 반복
     # 길이가 2 이상인 후보 아이템 목록 생성
     while (len(L[k - 2]) > 0):
+        print("==============",k, k-2, len(L[k - 2]),"================")
         # 길이가 k인 후보 아이템 집합 Ck 생성
         Ck = aprioriGen(L[k - 2], k)
         # Ck를 이용해 Lk를 생성하고 지지도를 저장하는 딕셔너리 추가
-        Lk, supK = scanD(D, Ck, minSupport)  # scan DB to get Lk
+        Lk, supK = scanD(D, Ck, minSupport,0)  # scan DB to get Lk
         supportData.update(supK)
         L.append(Lk)
         k += 1
 
-    return L, supportData
+    return L, supportData, C1sup
+
+
 
 
 def generateRules(L, supportData, minConf):  # supportData is a dict coming from scanD
@@ -482,8 +496,9 @@ def calcConf(source, target, supportData, brl, minConf):
     if (source | target) in supportData.keys() and source in supportData.keys() and target in supportData.keys():
         conftmp = supportData[source | target] / supportData[source]
         if conftmp >= minConf:
-            # print(source, '-->', target, 'sup: ', supportData[source | target], ' conf: ', conftmp, ' lift: ',
-            #       conftmp / supportData[target])
+            if len(source) + len(target) == 2:
+                print(source, '-->', target, 'sup: ', supportData[source | target], ' conf: ', conftmp, ' lift: ',
+                  conftmp / supportData[target])
             tmp = {}
             tmp["source"] = list(source)
             tmp["target"] = list(target)
